@@ -70,7 +70,7 @@ const cartSlice = createSlice({
             }
         },
 
-        // 🔷 नविन reducer
+   
         clearCart(state) {
             state.products = [];
             state.totalQuantity = 0;
