@@ -55,28 +55,3 @@ export default ProductCard;
 
 
 
-
-
-// ✅ event.stopPropagation();
-
-// क्लिक इव्हेंट वरच्या (parent) घटकांपर्यंत पोहोचू नये यासाठी.
-
-// उदाहरण: जर ही कार्ड एखाद्या क्लिकेबल यादीमध्ये असेल, तर फक्त बटणावरच क्लिक होईल, यादीवर नको.
-
-// ✅ event.preventDefault();
-
-// त्या इव्हेंटचा default ब्राउझर action थांबवतो.
-
-// उदाहरण: जर बटण form मध्ये असेल तर फॉर्म सबमिट होणार नाही.
-
-// ✅ dispatch(addToCart(product));
-
-// Redux च्या store ला सांगतो की हा प्रॉडक्ट cart मध्ये टाका.
-
-// addToCart हा action कॉल होतो आणि cart मध्ये तो प्रॉडक्ट अ‍ॅड होतो.
-
-// ✅ alert("Product Added Successfully!");
-
-// युजरला सांगतो की प्रॉडक्ट cart मध्ये अ‍ॅड झाला आहे.
-
-// साधा browser popup मेसेज.
