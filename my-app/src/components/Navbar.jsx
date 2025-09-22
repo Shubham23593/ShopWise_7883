@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaSearch, FaShoppingCart, FaUser } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../firebase";
+import { useAuth } from "../context/AuthContext";
 import Modal from "./Modal";
 import AuthForm from "./AuthForm";
 import { setSearchTerm } from "../redux/productSlice";
@@ -15,16 +14,8 @@ const Navbar = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+  const { user, loading } = useAuth();
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -41,7 +32,6 @@ const Navbar = () => {
 
   return (
    <nav className="bg-white shadow-md">
-
 
       <div className="container mx-auto px-4 md:px-16 lg:px-24 py-4 flex justify-between items-center">
         {/* Logo */}
@@ -78,7 +68,7 @@ const Navbar = () => {
           </Link>
 
           {/* User */}
-          {authLoading ? (
+          {loading ? (
             <div className="text-sm text-gray-500">Loading...</div>
           ) : user ? (
             <>
