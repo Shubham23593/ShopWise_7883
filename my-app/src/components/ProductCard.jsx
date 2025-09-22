@@ -1,16 +1,35 @@
 import React from "react";
 import { FaStar } from 'react-icons/fa';
-import { addToCart } from "../redux/cartSlice";
+import { addToCart, addToCartAsync } from "../redux/cartSlice";
 import { useDispatch } from "react-redux";
+import { useAuth } from "../context/AuthContext";
+import { toast } from 'react-toastify';
 
 const ProductCard = ({ product }) => {
   const dispatch = useDispatch();
+  const { user } = useAuth();
 
-  const handleAddToCart = (event, product) => {
+  const handleAddToCart = async (event, product) => {
     event.stopPropagation();
     event.preventDefault();
-    dispatch(addToCart(product));
-    alert("Product Added Successfully!");
+    
+    try {
+      if (user) {
+        // User is authenticated, use backend
+        await dispatch(addToCartAsync({ 
+          productId: product.id, 
+          product, 
+          quantity: 1 
+        })).unwrap();
+        toast.success("Product added to cart!");
+      } else {
+        // User not authenticated, use local cart
+        dispatch(addToCart(product));
+        toast.success("Product added to cart!");
+      }
+    } catch (error) {
+      toast.error(error || "Failed to add product to cart");
+    }
   };
 
   return (
