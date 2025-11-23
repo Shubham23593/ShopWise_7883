@@ -1,5 +1,15 @@
-import express from 'express';
+// ✅ CRITICAL: Load dotenv FIRST before any other imports
 import dotenv from 'dotenv';
+dotenv.config();
+
+// ✅ Verify env vars are loaded
+console.log('🔍 Environment Variables Check:');
+console.log('   PORT:', process.env.PORT || 'Not set');
+console.log('   NODE_ENV:', process.env.NODE_ENV || 'Not set');
+console.log('   GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? '✅ Loaded' : '❌ Missing');
+
+// Now import everything else
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -12,10 +22,7 @@ import authRoutes from './routes/auth.js';
 import cartRoutes from './routes/cart.js';
 import orderRoutes from './routes/order.js';
 import productRoutes from './routes/product.js';
-import chatRoutes from './routes/chatRoutes.js'; // ✅ Only Chat routes
-
-// Load env vars
-dotenv.config();
+import chatRoutes from './routes/chatRoutes.js';
 
 // Connect to database
 connectDB();
@@ -44,6 +51,13 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// Compression middleware
+app.use(compression());
+
+// Body parser middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 // Rate limiting
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -66,14 +80,8 @@ const chatLimiter = rateLimit({
   message: 'Too many messages, please slow down.',
 });
 
+// Apply general rate limiter to all API routes
 app.use('/api/', generalLimiter);
-
-// Compression middleware
-app.use(compression());
-
-// Body parser middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ============================================
 // ROUTES
@@ -83,7 +91,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/chat', chatLimiter, chatRoutes); // ✅ Chatbot routes
+app.use('/api/chat', chatLimiter, chatRoutes);
 
 // ============================================
 // HEALTH & STATUS ENDPOINTS
@@ -100,7 +108,8 @@ app.get('/api/health', (req, res) => {
     services: {
       database: 'connected',
       auth: 'active',
-      chat: 'active', // ✅ Chatbot active
+      chat: 'active',
+      gemini: process.env.GEMINI_API_KEY ? 'configured' : 'missing',
     }
   });
 });
@@ -109,14 +118,20 @@ app.get('/api', (req, res) => {
   res.json({
     name: 'ShopWise E-commerce API',
     version: '1.0.0',
-    description: 'E-commerce platform with AI chatbot support',
+    description: 'E-commerce platform with AI chatbot powered by Google Gemini',
     endpoints: {
       auth: '/api/auth',
       products: '/api/products',
       cart: '/api/cart',
       orders: '/api/orders',
-      chat: '/api/chat', // ✅ Chatbot endpoint
+      chat: '/api/chat',
     },
+    chatFeatures: [
+      'Product recommendations',
+      'Order tracking assistance',
+      'Customer support',
+      'Shipping & return info',
+    ],
     status: 'operational',
   });
 });
@@ -125,7 +140,14 @@ app.get('/', (req, res) => {
   res.json({
     message: '🛍️ Welcome to ShopWise API',
     version: '1.0.0',
-    features: ['E-commerce', 'AI Chatbot', 'Order Tracking'],
+    features: [
+      '🛒 E-commerce',
+      '🤖 AI Chatbot (Gemini)',
+      '📦 Order Tracking',
+      '💳 Secure Payments',
+      '🚚 Shipping Management',
+    ],
+    documentation: '/api',
   });
 });
 
@@ -133,6 +155,7 @@ app.get('/', (req, res) => {
 // ERROR HANDLERS
 // ============================================
 
+// 404 Handler
 app.use((req, res, next) => {
   res.status(404).json({ 
     success: false,
@@ -140,9 +163,17 @@ app.use((req, res, next) => {
     path: req.originalUrl,
     method: req.method,
     timestamp: new Date().toISOString(),
+    availableRoutes: [
+      '/api/auth',
+      '/api/products',
+      '/api/cart',
+      '/api/orders',
+      '/api/chat',
+    ],
   });
 });
 
+// Global Error Handler
 app.use((err, req, res, next) => {
   console.error('❌ Error:', {
     message: err.message,
@@ -152,6 +183,7 @@ app.use((err, req, res, next) => {
     timestamp: new Date().toISOString(),
   });
 
+  // Mongoose validation error
   if (err.name === 'ValidationError') {
     const errors = Object.values(err.errors).map(e => e.message);
     return res.status(400).json({
@@ -161,6 +193,7 @@ app.use((err, req, res, next) => {
     });
   }
 
+  // Mongoose duplicate key error
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue)[0];
     return res.status(400).json({
@@ -169,6 +202,7 @@ app.use((err, req, res, next) => {
     });
   }
 
+  // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
       success: false,
@@ -183,6 +217,16 @@ app.use((err, req, res, next) => {
     });
   }
 
+  // Gemini API errors
+  if (err.message && err.message.includes('GEMINI')) {
+    return res.status(503).json({
+      success: false,
+      message: 'AI service temporarily unavailable',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+
+  // Generic error
   res.status(err.status || 500).json({ 
     success: false,
     message: err.message || 'Internal server error',
@@ -205,20 +249,29 @@ const server = app.listen(PORT, () => {
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 Server: http://localhost:${PORT}`);
   console.log(`💚 Health: http://localhost:${PORT}/api/health`);
+  console.log(`📚 Docs: http://localhost:${PORT}/api`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('✅ Available Routes:');
   console.log(`   🔐 Auth:     /api/auth`);
   console.log(`   📦 Products: /api/products`);
   console.log(`   🛒 Cart:     /api/cart`);
   console.log(`   📋 Orders:   /api/orders`);
-  console.log(`   🤖 Chat:     /api/chat`);
+  console.log(`   🤖 Chat:     /api/chat (Gemini AI)`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🔑 Services Status:');
+  console.log(`   Database:  ${process.env.MONGO_URI ? '✅ Connected' : '❌ Not configured'}`);
+  console.log(`   Gemini AI: ${process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ API key missing'}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.log('❌ Unhandled Rejection:', err.message);
-  server.close(() => process.exit(1));
+  console.log('🔄 Shutting down server...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(1);
+  });
 });
 
 // Handle SIGTERM
@@ -228,3 +281,14 @@ process.on('SIGTERM', () => {
     console.log('✅ Process terminated');
   });
 });
+
+// Handle SIGINT (Ctrl+C)
+process.on('SIGINT', () => {
+  console.log('\n👋 SIGINT received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server stopped');
+    process.exit(0);
+  });
+});
+
+export default app;

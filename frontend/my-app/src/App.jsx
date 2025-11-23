@@ -14,6 +14,7 @@ import Home from "./pages/Home";
 import Shop from "./pages/Shop";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
+import OrderDetail from './pages/OrderDetail';
 import ProductDetail from "./pages/ProductDetail";
 import FilterData from "./components/FilterData";
 import OrderSuccess from "./components/OrderSuccess";
@@ -50,6 +51,7 @@ function AppRoutes() {
         <Route path="/product/:id" element={<ProductDetail />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/orders/:id" element={<OrderDetail />} />
         <Route
           path="/profile"
           element={user ? <Profile /> : <Navigate to="/" />}

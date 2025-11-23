@@ -5,13 +5,13 @@ import Cart from '../models/Cart.js';
 // @access  Private
 export const getCart = async (req, res) => {
   try {
-    console.log('🛒 Getting cart for user:', req.user.id);
+    console.log('🛒 Getting cart for user:', req.user._id);
 
-    let cart = await Cart.findOne({ userId: req.user.id });
+    let cart = await Cart.findOne({ userId: req.user._id });
 
     if (!cart) {
       cart = await Cart.create({
-        userId: req.user.id,
+        userId: req.user._id,
         items: [],
         totalQuantity: 0,
         totalPrice: 0,
@@ -50,11 +50,11 @@ export const addToCart = async (req, res) => {
       });
     }
 
-    let cart = await Cart.findOne({ userId: req.user.id });
+    let cart = await Cart.findOne({ userId: req.user._id });
 
     if (!cart) {
       cart = new Cart({
-        userId: req.user.id,
+        userId: req.user._id,
         items: [],
       });
     }
@@ -88,6 +88,7 @@ export const addToCart = async (req, res) => {
     res.json({
       success: true,
       data: cart,
+      message: 'Item added to cart',
     });
   } catch (error) {
     console.error('❌ Add to cart error:', error);
@@ -115,7 +116,7 @@ export const updateCartItem = async (req, res) => {
       });
     }
 
-    const cart = await Cart.findOne({ userId: req.user.id });
+    const cart = await Cart.findOne({ userId: req.user._id });
 
     if (!cart) {
       return res.status(404).json({
@@ -143,6 +144,7 @@ export const updateCartItem = async (req, res) => {
     res.json({
       success: true,
       data: cart,
+      message: 'Cart updated',
     });
   } catch (error) {
     console.error('❌ Update cart error:', error);
@@ -160,9 +162,9 @@ export const removeFromCart = async (req, res) => {
   try {
     const { productId } = req.params;
 
-    console.log('🗑️  Removing from cart:', productId);
+    console.log('🗑️ Removing from cart:', productId);
 
-    const cart = await Cart.findOne({ userId: req.user.id });
+    const cart = await Cart.findOne({ userId: req.user._id });
 
     if (!cart) {
       return res.status(404).json({
@@ -179,6 +181,7 @@ export const removeFromCart = async (req, res) => {
     res.json({
       success: true,
       data: cart,
+      message: 'Item removed from cart',
     });
   } catch (error) {
     console.error('❌ Remove from cart error:', error);
@@ -194,9 +197,9 @@ export const removeFromCart = async (req, res) => {
 // @access  Private
 export const clearCart = async (req, res) => {
   try {
-    console.log('🗑️  Clearing cart for user:', req.user.id);
+    console.log('🗑️ Clearing cart for user:', req.user._id);
 
-    const cart = await Cart.findOne({ userId: req.user.id });
+    const cart = await Cart.findOne({ userId: req.user._id });
 
     if (!cart) {
       return res.status(404).json({
@@ -215,6 +218,7 @@ export const clearCart = async (req, res) => {
     res.json({
       success: true,
       data: cart,
+      message: 'Cart cleared',
     });
   } catch (error) {
     console.error('❌ Clear cart error:', error);

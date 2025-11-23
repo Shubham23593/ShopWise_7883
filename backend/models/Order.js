@@ -13,6 +13,7 @@ const orderSchema = new mongoose.Schema({
       price: Number,
       quantity: Number,
       image: String,
+      brand: String,
     },
   ],
   shippingAddress: {
@@ -33,6 +34,16 @@ const orderSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+});
+
+// Safety fallback: compute totalAmount if somehow missing
+orderSchema.pre('validate', function(next) {
+  if (this.totalAmount == null && Array.isArray(this.items)) {
+    this.totalAmount = this.items.reduce((sum, item) => {
+      return sum + ((item.price || 0) * (item.quantity || 0));
+    }, 0);
+  }
+  next();
 });
 
 const Order = mongoose.model('Order', orderSchema);

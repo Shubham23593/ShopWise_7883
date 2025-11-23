@@ -1,24 +1,22 @@
 import express from 'express';
 import {
-  getChatSession,
+  createChatSession,
   sendMessage,
-  getOrderStatus,
-  getProductRecommendations,
   getChatHistory,
-  closeChat,
+  closeChatSession,
+  getMySessions,
 } from '../controllers/chatController.js';
-import { protect } from '../middleware/auth.js'; // ✅ Changed from authMiddleware.js to auth.js
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(protect);
-
-router.post('/session', getChatSession);
+// Public routes
+router.post('/session', createChatSession);
 router.post('/message', sendMessage);
-router.post('/order-status', getOrderStatus);
-router.post('/recommend', getProductRecommendations);
-router.get('/history', getChatHistory);
-router.put('/close/:sessionId', closeChat);
+router.get('/history/:sessionId', getChatHistory);
+router.put('/close/:sessionId', closeChatSession);
+
+// Protected routes
+router.get('/my-sessions', protect, getMySessions);
 
 export default router;

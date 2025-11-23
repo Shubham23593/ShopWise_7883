@@ -16,6 +16,7 @@ const Checkout = () => {
   const [shippingToggle, setShippingToggle] = useState(false);
   const [paymentToggle, setPaymentToggle] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   const cart = useSelector((state) => state.cart) || { products: [], totalPrice: 0 };
 
@@ -39,6 +40,7 @@ const Checkout = () => {
   });
 
   const handlePlaceOrder = async () => {
+    // Validation
     if (!billingInfo.name || !billingInfo.email || !billingInfo.phone) {
       toast.error("Please fill all Billing Information fields");
       return;
@@ -52,11 +54,33 @@ const Checkout = () => {
       return;
     }
 
+    // Prevent double submission
+    if (isPlacingOrder) {
+      return;
+    }
+
+    setIsPlacingOrder(true);
+
     try {
-      // Create order in backend
-      const { data } = await orderAPI.createOrder({ shippingAddress: shippingInfo });
+      console.log('📤 Placing order with shipping:', shippingInfo);
+
+      // Backend returns { success: true, data: order, message: '...' }
+      const response = await orderAPI.createOrder({ 
+        shippingAddress: shippingInfo 
+      });
       
-      toast.success("Order placed successfully!");
+      console.log('✅ Order response:', response);
+
+      // Extract the actual order from response.data.data
+      const order = response.data?.data || response.data;
+      
+      if (!order || !order._id) {
+        throw new Error('Invalid order response');
+      }
+
+      console.log('✅ Order created:', order);
+      
+      toast.success("Order placed successfully! 🎉");
       
       // Clear cart
       await dispatch(clearCartAsync()).unwrap();
@@ -64,14 +88,20 @@ const Checkout = () => {
       // Navigate to order confirmation
       navigate("/order-confirmation", {
         state: {
-          orderId: data._id,
-          products: data.items,
-          totalPrice: data.totalAmount,
-          totalItems: data.items.reduce((sum, item) => sum + item.quantity, 0),
+          orderId: order._id,
+          products: order.items,
+          totalPrice: order.totalAmount,
+          totalItems: order.items.reduce((sum, item) => sum + item.quantity, 0),
         },
       });
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to place order");
+      console.error('❌ Order placement error:', error);
+      console.error('Error response:', error.response?.data);
+      
+      const errorMessage = error.response?.data?.message || error.message || "Failed to place order";
+      toast.error(errorMessage);
+    } finally {
+      setIsPlacingOrder(false);
     }
   };
 
@@ -93,33 +123,51 @@ const Checkout = () => {
               </h4>
               {billingToggle ? <FaAngleDown /> : <FaAngleUp />}
             </div>
-            <div className={`${billingToggle ? "mt-4 space-y-4" : "hidden"}`}>
-              <input
-                type="text"
-                placeholder="Name"
-                value={billingInfo.name}
-                onChange={(e) => setBillingInfo({ ...billingInfo, name: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg shadow border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={billingInfo.email}
-                onChange={(e) => setBillingInfo({ ...billingInfo, email: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg shadow border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <input
-                type="text"
-                placeholder="Phone Number"
-                value={billingInfo.phone}
-                onChange={(e) => setBillingInfo({ ...billingInfo, phone: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg shadow border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
+
+            {billingToggle && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-gray-600 mb-1">Name</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Enter your full name"
+                    value={billingInfo.name}
+                    onChange={(e) =>
+                      setBillingInfo({ ...billingInfo, name: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1">Email</label>
+                  <input
+                    type="email"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Enter your email"
+                    value={billingInfo.email}
+                    onChange={(e) =>
+                      setBillingInfo({ ...billingInfo, email: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1">Phone</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Enter your phone number"
+                    value={billingInfo.phone}
+                    onChange={(e) =>
+                      setBillingInfo({ ...billingInfo, phone: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Shipping Info */}
-          <div className="rounded-xl shadow-2xl p-4 bg-white">
+          <div className="rounded-xl shadow-2xl p-4 bg-white hover:shadow-3xl transition-all duration-300">
             <div
               className="flex justify-between items-center cursor-pointer"
               onClick={() => setShippingToggle(!shippingToggle)}
@@ -129,33 +177,51 @@ const Checkout = () => {
               </h4>
               {shippingToggle ? <FaAngleDown /> : <FaAngleUp />}
             </div>
-            <div className={`${shippingToggle ? "mt-4 space-y-4" : "hidden"}`}>
-              <input
-                type="text"
-                placeholder="Address"
-                value={shippingInfo.address}
-                onChange={(e) => setShippingInfo({ ...shippingInfo, address: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg shadow border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <input
-                type="text"
-                placeholder="City"
-                value={shippingInfo.city}
-                onChange={(e) => setShippingInfo({ ...shippingInfo, city: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg shadow border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <input
-                type="text"
-                placeholder="Zip Code"
-                value={shippingInfo.zip}
-                onChange={(e) => setShippingInfo({ ...shippingInfo, zip: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg shadow border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
+
+            {shippingToggle && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-gray-600 mb-1">Address</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Enter your address"
+                    value={shippingInfo.address}
+                    onChange={(e) =>
+                      setShippingInfo({ ...shippingInfo, address: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1">City</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Enter your city"
+                    value={shippingInfo.city}
+                    onChange={(e) =>
+                      setShippingInfo({ ...shippingInfo, city: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1">Zip Code</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Enter zip code"
+                    value={shippingInfo.zip}
+                    onChange={(e) =>
+                      setShippingInfo({ ...shippingInfo, zip: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Payment Method */}
-          <div className="rounded-xl shadow-2xl p-4 bg-white">
+          <div className="rounded-xl shadow-2xl p-4 bg-white hover:shadow-3xl transition-all duration-300">
             <div
               className="flex justify-between items-center cursor-pointer"
               onClick={() => setPaymentToggle(!paymentToggle)}
@@ -165,70 +231,69 @@ const Checkout = () => {
               </h4>
               {paymentToggle ? <FaAngleDown /> : <FaAngleUp />}
             </div>
-            <div className={`${paymentToggle ? "mt-4 space-y-3" : "hidden"}`}>
-              <div className="flex items-center">
-                <input
-                  type="radio"
-                  name="payment"
-                  value="cod"
-                  checked={paymentMethod === "cod"}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="mr-2"
-                />
-                <label>Cash on Delivery</label>
+
+            {paymentToggle && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    name="payment"
+                    value="cod"
+                    checked={paymentMethod === "cod"}
+                    onChange={() => setPaymentMethod("cod")}
+                    className="mr-2"
+                  />
+                  <label>Cash on Delivery</label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    name="payment"
+                    value="card"
+                    checked={paymentMethod === "card"}
+                    onChange={() => setPaymentMethod("card")}
+                    className="mr-2"
+                  />
+                  <label>Debit/Credit Card</label>
+                </div>
               </div>
-              <div className="flex items-center">
-                <input
-                  type="radio"
-                  name="payment"
-                  value="card"
-                  checked={paymentMethod === "card"}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="mr-2"
-                />
-                <label>Credit/Debit Card</label>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
         {/* Order Summary */}
-        <div className="md:w-1/3 bg-white p-6 rounded-xl shadow-2xl">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800">
-            Order Summary
-          </h3>
-          <div className="space-y-3">
-            {cart.products.map((product, idx) => (
-              <div key={idx} className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-12 h-12 object-cover rounded"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">{product.name}</p>
-                    <p className="text-xs text-gray-500">Qty: {product.quantity}</p>
-                  </div>
-                </div>
-                <span className="text-sm font-semibold">
-                  ₹{(product.price * product.quantity).toFixed(2)}
+        <div className="md:w-1/3">
+          <div className="rounded-xl shadow-2xl p-6 bg-white sticky top-20">
+            <h4 className="text-2xl font-bold mb-4 text-gray-800">
+              Order Summary
+            </h4>
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between text-gray-700">
+                <span>Products:</span>
+                <span className="font-semibold">
+                  {cart.products?.length || 0}
                 </span>
               </div>
-            ))}
-          </div>
-          <div className="border-t mt-4 pt-4">
-            <div className="flex justify-between font-bold text-lg">
-              <span>Total:</span>
-              <span>₹{cart.totalPrice.toFixed(2)}</span>
+              <div className="flex justify-between text-gray-700 text-lg">
+                <span>Total:</span>
+                <span className="font-bold text-blue-600">
+                  ₹{cart.totalPrice?.toFixed(2) || '0.00'}
+                </span>
+              </div>
             </div>
+
+            <button
+              onClick={handlePlaceOrder}
+              disabled={isPlacingOrder}
+              className={`w-full py-3 rounded-lg font-semibold transition-all duration-300 ${
+                isPlacingOrder
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl'
+              }`}
+            >
+              {isPlacingOrder ? 'Placing Order...' : 'Place Order'}
+            </button>
           </div>
-          <button
-            onClick={handlePlaceOrder}
-            className="w-full mt-6 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 shadow-lg"
-          >
-            Place Order
-          </button>
         </div>
       </div>
     </div>
