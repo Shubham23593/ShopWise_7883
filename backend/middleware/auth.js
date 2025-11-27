@@ -1,55 +1,129 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import Admin from '../models/Admin.js';
 
-// Protect routes - Authentication
+// ============================================
+// CUSTOMER AUTH MIDDLEWARE
+// ============================================
+
 export const protect = async (req, res, next) => {
-  let token;
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    try {
-      // Get token from header
-      token = req.headers.authorization.split(' ')[1];
-
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Get user from token
-      req.user = await User.findById(decoded.id).select('-password');
-
-      if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          message: 'User not found',
-        });
-      }
-
-      next();
-    } catch (error) {
-      console.error('Auth middleware error:', error);
+    if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, token failed',
+        message: 'No token provided'
       });
     }
-  } else {
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
     return res.status(401).json({
       success: false,
-      message: 'Not authorized, no token',
+      message: 'Invalid token',
+      error: error.message
     });
   }
 };
 
-// ✅ Admin middleware - Check if user is admin
-export const admin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+// ============================================
+// ADMIN AUTH MIDDLEWARE
+// ============================================
+
+export const adminLogin = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const admin = await Admin.findById(decoded.id);
+
+    if (!admin || admin.status !== 'active') {
+      return res.status(401).json({
+        success: false,
+        message: 'Admin not found or inactive'
+      });
+    }
+
+    req.admin = admin;
     next();
-  } else {
-    res.status(403).json({
+  } catch (error) {
+    return res.status(401).json({
       success: false,
-      message: 'Access denied. Admin only.',
+      message: 'Invalid token',
+      error: error.message
     });
   }
+};
+
+export const checkPermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.admin.permissions[permission]) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to access this resource'
+      });
+    }
+    next();
+  };
+};
+
+export const checkRole = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.admin.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient privileges'
+      });
+    }
+    next();
+  };
+};
+
+// Admin middleware (for old routes)
+export const admin = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const admin = await Admin.findById(decoded.id);
+
+    if (!admin || admin.status !== 'active') {
+      return res.status(401).json({
+        success: false,
+        message: 'Admin not found or inactive'
+      });
+    }
+
+    req.admin = admin;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token'
+    });
+  }
+};
+
+export default {
+  protect,
+  adminLogin,
+  checkPermission,
+  checkRole,
+  admin
 };

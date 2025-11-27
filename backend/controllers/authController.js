@@ -1,200 +1,127 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 
-// Generate JWT Token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
-  });
-};
-
-// @desc    Register new user
-// @route   POST /api/auth/register
-// @access  Public
-export const register = async (req, res) => {
+export const login = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { email, password } = req.body;
 
-    console.log('📝 Register request:', { name, email });
-
-    // Validation
-    if (!name || !email || !password) {
-      return res.status(400).json({ 
+    if (!email || !password) {
+      return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields' 
+        message: 'Please provide email and password'
       });
     }
 
-    // Check if user exists
-    const userExists = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('+password');
 
-    if (userExists) {
-      return res.status(400).json({ 
+    if (!user) {
+      return res.status(401).json({
         success: false,
-        message: 'User already exists with this email' 
+        message: 'Invalid email or password'
       });
     }
 
-    // Create user
-    const user = await User.create({
-      name,
-      email,
-      password, // Will be hashed by pre-save hook
-    });
+    if (user.status !== 'active') {
+      return res.status(401).json({
+        success: false,
+        message: 'User account is inactive'
+      });
+    }
 
-    if (user) {
-      const token = generateToken(user._id);
-      
-      console.log('✅ User registered:', user.email);
+    // Use matchPassword method
+    const isPasswordMatch = await user.matchPassword(password);
 
-      res.status(201).json({
-        success: true,
+    if (!isPasswordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
         token,
         user: {
           id: user._id,
           name: user.name,
           email: user.email,
-        },
-      });
-    }
+          phone: user.phone
+        }
+      }
+    });
+
   } catch (error) {
-    console.error('❌ Register error:', error);
-    res.status(500).json({ 
+    console.error('Login Error:', error);
+    res.status(500).json({
       success: false,
-      message: error.message || 'Server error during registration' 
+      message: 'Server error',
+      error: error.message
     });
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
-export const login = async (req, res) => {
+export const register = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { name, email, phone, password } = req.body;
 
-    console.log('🔐 Login request:', email);
-
-    // Validation
-    if (!email || !password) {
-      return res.status(400).json({ 
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({
         success: false,
-        message: 'Please provide email and password' 
+        message: 'Please provide all required fields'
       });
     }
 
-    // Find user and include password field
-    const user = await User.findOne({ email }).select('+password');
+    const userExists = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(401).json({ 
+    if (userExists) {
+      return res.status(400).json({
         success: false,
-        message: 'Invalid email or password' 
+        message: 'User already exists'
       });
     }
 
-    // Check password
-    const isPasswordMatch = await user.matchPassword(password);
-
-    if (!isPasswordMatch) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Invalid email or password' 
-      });
-    }
-
-    const token = generateToken(user._id);
-
-    console.log('✅ User logged in:', user.email);
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-      },
+    const user = await User.create({
+      name,
+      email,
+      phone,
+      password
     });
-  } catch (error) {
-    console.error('❌ Login error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Server error during login' 
-    });
-  }
-};
 
-// @desc    Get user profile
-// @route   GET /api/auth/profile
-// @access  Private
-export const getProfile = async (req, res) => {
-  try {
-    console.log('👤 Profile request for user:', req.user?._id);
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
-    const user = await User.findById(req.user.id);
-
-    if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'User not found' 
-      });
-    }
-
-    res.json({
+    return res.status(201).json({
       success: true,
+      message: 'User registered successfully',
       data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-      },
+        token,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email
+        }
+      }
     });
+
   } catch (error) {
-    console.error('❌ Profile error:', error);
-    res.status(500).json({ 
+    console.error('Register Error:', error);
+    res.status(500).json({
       success: false,
-      message: error.message || 'Server error' 
+      message: 'Server error',
+      error: error.message
     });
   }
 };
 
-// @desc    Update user profile
-// @route   PUT /api/auth/profile
-// @access  Private
-export const updateProfile = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-
-    if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'User not found' 
-      });
-    }
-
-    // Update fields
-    user.name = req.body.name || user.name;
-    user.email = req.body.email || user.email;
-
-    if (req.body.password) {
-      user.password = req.body.password;
-    }
-
-    const updatedUser = await user.save();
-
-    res.json({
-      success: true,
-      data: {
-        id: updatedUser._id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-      },
-    });
-  } catch (error) {
-    console.error('❌ Update profile error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Server error' 
-    });
-  }
-};
+export default { login, register };

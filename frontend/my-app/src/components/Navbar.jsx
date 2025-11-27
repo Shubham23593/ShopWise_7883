@@ -45,6 +45,12 @@ const Navbar = () => {
     setIsMobileMenuOpen(false);
   };
 
+  // ✅ Handle Admin Login
+  const handleAdminLogin = () => {
+    navigate('/admin/login');
+    closeMobileMenu();
+  };
+
   return (
     <>
       <nav className="bg-white shadow-md sticky top-0 z-40">
@@ -82,6 +88,15 @@ const Navbar = () => {
                   </span>
                 )}
               </Link>
+
+              {/* ✅ Admin Login Button - Desktop */}
+              <button
+                onClick={handleAdminLogin}
+                className="px-3 py-1 text-xs font-bold bg-red-600 text-white rounded hover:bg-red-700 transition"
+                title="Admin Panel"
+              >
+                🔐 Admin
+              </button>
 
               {user ? (
                 <div className="relative group">
@@ -190,6 +205,14 @@ const Navbar = () => {
                 </span>
               )}
             </Link>
+
+            {/* ✅ Admin Login Button - Mobile */}
+            <button
+              onClick={handleAdminLogin}
+              className="block w-full text-left py-2 px-2 bg-red-600 text-white rounded hover:bg-red-700 transition font-medium"
+            >
+              🔐 Admin Login
+            </button>
 
             {user ? (
               <>

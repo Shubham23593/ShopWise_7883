@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { FaEye, FaEyeSlash, FaUser, FaEnvelope, FaLock, FaShoppingBag, FaTimes } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaUser, FaEnvelope, FaLock, FaShoppingBag, FaTimes, FaPhone } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 const AuthForm = ({ closeModal }) => {
@@ -12,6 +12,7 @@ const AuthForm = ({ closeModal }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phone: '',
     password: '',
     confirmPassword: ''
   });
@@ -33,48 +34,98 @@ const AuthForm = ({ closeModal }) => {
 
     try {
       if (isLogin) {
+        // ✅ Login Validation
         if (!formData.email || !formData.password) {
-          toast.error('Please fill all fields');
+          toast.error('❌ Please fill all fields');
           setLoading(false);
           return;
         }
 
-        await login(formData.email, formData.password);
-        closeModal?.();
-        navigate('/', { replace: true });
+        if (!formData.email.includes('@')) {
+          toast.error('❌ Please enter a valid email');
+          setLoading(false);
+          return;
+        }
+
+        console.log('🔐 Submitting login...', formData.email);
+        const result = await login(formData.email, formData.password);
+        
+        if (result.success) {
+          toast.success('✅ Login successful!');
+          closeModal?.();
+          setTimeout(() => {
+            navigate('/', { replace: true });
+          }, 500);
+        }
 
       } else {
-        if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
-          toast.error('Please fill all fields');
-          setLoading(false);
-          return;
-        }
-        if (formData.password !== formData.confirmPassword) {
-          toast.error('Passwords do not match');
-          setLoading(false);
-          return;
-        }
-        if (formData.password.length < 6) {
-          toast.error('Password must be at least 6 characters');
+        // ✅ Register Validation
+        if (!formData.name || !formData.email || !formData.phone || !formData.password || !formData.confirmPassword) {
+          toast.error('❌ Please fill all fields');
           setLoading(false);
           return;
         }
 
-        await register(formData.name, formData.email, formData.password);
-        closeModal?.();
-        navigate('/', { replace: true });
+        if (!formData.email.includes('@')) {
+          toast.error('❌ Please enter a valid email');
+          setLoading(false);
+          return;
+        }
+
+        if (formData.phone.length < 10) {
+          toast.error('❌ Please enter a valid phone number');
+          setLoading(false);
+          return;
+        }
+
+        if (formData.password !== formData.confirmPassword) {
+          toast.error('❌ Passwords do not match');
+          setLoading(false);
+          return;
+        }
+
+        if (formData.password.length < 6) {
+          toast.error('❌ Password must be at least 6 characters');
+          setLoading(false);
+          return;
+        }
+
+        console.log('📝 Submitting register...', formData.email);
+        const result = await register(
+          formData.name,
+          formData.email,
+          formData.phone,
+          formData.password
+        );
+
+        if (result.success) {
+          toast.success('✅ Registration successful!');
+          closeModal?.();
+          setTimeout(() => {
+            navigate('/', { replace: true });
+          }, 500);
+        }
       }
     } catch (error) {
       console.error('❌ Auth error:', error);
       
-      if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
-        toast.error('Cannot connect to server. Please try again later.');
+      // ✅ Better Error Handling
+      if (error.code === 'ERR_NETWORK' || error.message?.includes('Network')) {
+        toast.error('❌ Cannot connect to server. Check if backend is running on http://localhost:5000');
       } else if (error.code === 'ECONNABORTED') {
-        toast.error('Request timeout. Please try again.');
-      } else if (error.response) {
-        toast.error(error.response.data.message || 'Authentication failed');
+        toast.error('❌ Request timeout. Please try again.');
+      } else if (error.response?.status === 400) {
+        toast.error(`❌ ${error.response.data.message || 'Invalid credentials'}`);
+      } else if (error.response?.status === 401) {
+        toast.error('❌ Invalid email or password');
+      } else if (error.response?.status === 404) {
+        toast.error('❌ User not found');
+      } else if (error.response?.status === 500) {
+        toast.error('❌ Server error. Please try again later');
+      } else if (error.response?.data?.message) {
+        toast.error(`❌ ${error.response.data.message}`);
       } else {
-        toast.error(error.message || 'An error occurred. Please try again.');
+        toast.error(`❌ ${error.message || 'An error occurred. Please try again.'}`);
       }
     } finally {
       setLoading(false);
@@ -86,6 +137,7 @@ const AuthForm = ({ closeModal }) => {
     setFormData({
       name: '',
       email: '',
+      phone: '',
       password: '',
       confirmPassword: ''
     });
@@ -108,38 +160,38 @@ const AuthForm = ({ closeModal }) => {
           </button>
         )}
 
-        {/* Left Side - Branding (Hidden on small mobile) */}
+        {/* Left Side - Branding */}
         <div className="hidden sm:flex bg-gradient-to-br from-[#3B2F2F] to-[#6B4F4F] p-6 sm:p-8 md:w-2/5 flex-col justify-center text-white">
           <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
             <FaShoppingBag className="text-2xl sm:text-3xl" />
             <h1 className="text-xl sm:text-2xl font-bold">ShopWise</h1>
           </div>
           <h2 className="text-lg sm:text-xl font-bold mb-2 sm:mb-3">
-            {isLogin ? 'Welcome Back!' : 'Join Us Today!'}
+            {isLogin ? '🎉 Welcome Back!' : '🎊 Join Us Today!'}
           </h2>
           <p className="text-gray-200 text-xs sm:text-sm mb-4 sm:mb-6">
             {isLogin 
-              ? 'Login to access your account and continue shopping.' 
-              : 'Create an account to start your shopping journey.'}
+              ? 'Login to access your account and continue shopping for amazing products!' 
+              : 'Create an account to start your shopping journey with us.'}
           </p>
           <div className="space-y-1.5 sm:space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">
                 ✓
               </div>
-              <span className="text-xs sm:text-sm">Exclusive Deals</span>
+              <span className="text-xs sm:text-sm">💰 Exclusive Deals</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">
                 ✓
               </div>
-              <span className="text-xs sm:text-sm">Fast Delivery</span>
+              <span className="text-xs sm:text-sm">⚡ Fast Delivery</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">
                 ✓
               </div>
-              <span className="text-xs sm:text-sm">Secure Payments</span>
+              <span className="text-xs sm:text-sm">🔒 Secure Payments</span>
             </div>
           </div>
         </div>
@@ -154,7 +206,7 @@ const AuthForm = ({ closeModal }) => {
 
           <div className="mb-4 sm:mb-6">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-1">
-              {isLogin ? 'Login' : 'Create Account'}
+              {isLogin ? '🔐 Login' : '📝 Create Account'}
             </h2>
             <p className="text-gray-500 text-xs sm:text-sm">
               {isLogin 
@@ -180,6 +232,7 @@ const AuthForm = ({ closeModal }) => {
                     className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-[#3B2F2F] transition-colors"
                     placeholder="Enter your full name"
                     disabled={loading}
+                    required
                   />
                 </div>
               </div>
@@ -198,11 +251,34 @@ const AuthForm = ({ closeModal }) => {
                   value={formData.email}
                   onChange={handleInputChange}
                   className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-[#3B2F2F] transition-colors"
-                  placeholder="Enter your email"
+                  placeholder="example@email.com"
                   disabled={loading}
+                  required
                 />
               </div>
             </div>
+
+            {/* Phone Field (Register only) */}
+            {!isLogin && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Phone Number
+                </label>
+                <div className="relative">
+                  <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs sm:text-sm" />
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-[#3B2F2F] transition-colors"
+                    placeholder="10 digit mobile number"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Password Field */}
             <div>
@@ -219,6 +295,7 @@ const AuthForm = ({ closeModal }) => {
                   className="w-full pl-9 sm:pl-10 pr-9 sm:pr-10 py-2 sm:py-2.5 text-xs sm:text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-[#3B2F2F] transition-colors"
                   placeholder="Enter your password"
                   disabled={loading}
+                  required
                 />
                 <button
                   type="button"
@@ -230,7 +307,7 @@ const AuthForm = ({ closeModal }) => {
               </div>
               {!isLogin && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Password must be at least 6 characters
+                  Min 6 characters
                 </p>
               )}
             </div>
@@ -249,8 +326,9 @@ const AuthForm = ({ closeModal }) => {
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
                     className="w-full pl-9 sm:pl-10 pr-9 sm:pr-10 py-2 sm:py-2.5 text-xs sm:text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-[#3B2F2F] transition-colors"
-                    placeholder="Confirm your password"
+                    placeholder="Re-enter your password"
                     disabled={loading}
+                    required
                   />
                   <button
                     type="button"
@@ -293,7 +371,7 @@ const AuthForm = ({ closeModal }) => {
                   Processing...
                 </span>
               ) : (
-                isLogin ? 'Login' : 'Create Account'
+                isLogin ? '🔓 Login' : '✍️ Create Account'
               )}
             </button>
           </form>
@@ -306,13 +384,14 @@ const AuthForm = ({ closeModal }) => {
           </div>
 
           {/* Switch Mode */}
-          <div className="text-center">
+          <div className="text-center mb-4">
             <p className="text-gray-600 text-xs sm:text-sm">
               {isLogin ? "Don't have an account?" : "Already have an account?"}
               <button
                 type="button"
                 onClick={switchMode}
-                className="ml-1 text-[#3B2F2F] font-bold hover:underline transition-all"
+                disabled={loading}
+                className="ml-1 text-[#3B2F2F] font-bold hover:underline transition-all disabled:opacity-50"
               >
                 {isLogin ? 'Register' : 'Login'}
               </button>
@@ -323,9 +402,9 @@ const AuthForm = ({ closeModal }) => {
           {closeModal && (
             <button
               onClick={closeModal}
-              className="hidden md:block mt-4 w-full py-2 text-sm text-gray-600 hover:text-gray-800 font-semibold transition-colors"
+              className="hidden md:block w-full py-2 text-sm text-gray-600 hover:text-gray-800 font-semibold transition-colors border-t pt-4"
             >
-              Close
+              ✕ Close
             </button>
           )}
         </div>

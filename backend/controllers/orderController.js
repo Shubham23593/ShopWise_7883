@@ -1,125 +1,179 @@
 import Order from '../models/Order.js';
-import Cart from '../models/Cart.js';
 
-// @desc    Create new order
-// @route   POST /api/orders
-// @access  Private
-export const createOrder = async (req, res) => {
+// Get all orders
+export const getAllOrders = async (req, res) => {
   try {
-    const { shippingAddress } = req.body;
+    const { page = 1, limit = 10, status, search } = req.query;
+    const skip = (page - 1) * limit;
 
-    // Validate shipping address
-    if (!shippingAddress || !shippingAddress.address || !shippingAddress.city || !shippingAddress.zip) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Shipping address is required with address, city, and zip' 
-      });
+    let query = {};
+
+    if (status) {
+      query.orderStatus = status;
     }
 
-    // Get user cart
-    const cart = await Cart.findOne({ userId: req.user._id });
-
-    if (!cart || cart.items.length === 0) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Cart is empty' 
-      });
+    if (search) {
+      query.$or = [
+        { orderNumber: { $regex: search, $options: 'i' } },
+        { 'shippingAddress.email': { $regex: search, $options: 'i' } }
+      ];
     }
 
-    // Use cart.totalPrice instead of cart.totalAmount
-    const totalAmount = cart.totalPrice || cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const orders = await Order.find(query)
+      .populate('userId', 'name email phone')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
 
-    console.log('Creating order with totalAmount:', totalAmount);
+    const total = await Order.countDocuments(query);
 
-    // Create order
-    const order = await Order.create({
-      userId: req.user._id,
-      items: cart.items,
-      shippingAddress,
-      totalAmount,
-    });
-
-    console.log('Order created successfully:', order._id);
-
-    // Clear cart after order
-    cart.items = [];
-    cart.totalQuantity = 0;
-    cart.totalPrice = 0;
-    await cart.save();
-
-    res.status(201).json({ 
+    res.status(200).json({
       success: true,
-      data: order,
-      message: 'Order placed successfully'
+      data: orders,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / limit)
+      }
     });
   } catch (error) {
-    console.error('Create order error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };
 
-// @desc    Get user orders
-// @route   GET /api/orders
-// @access  Private
-export const getOrders = async (req, res) => {
+// Get order details
+export const getOrderDetails = async (req, res) => {
   try {
-    const orders = await Order.find({ userId: req.user._id }).sort({
-      createdAt: -1,
-    });
+    const { id } = req.params;
 
-    res.json({ 
-      success: true, 
-      count: orders.length,
-      data: orders 
-    });
-  } catch (error) {
-    console.error('Get orders error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message 
-    });
-  }
-};
-
-// @desc    Get single order
-// @route   GET /api/orders/:id
-// @access  Private
-export const getOrderById = async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(id)
+      .populate('userId', 'name email phone address')
+      .populate('products.productId', 'name image');
 
     if (!order) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Order not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
       });
     }
 
-    if (order.userId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Not authorized to view this order' 
-      });
-    }
-
-    res.json({ 
-      success: true, 
-      data: order 
+    res.status(200).json({
+      success: true,
+      data: order
     });
   } catch (error) {
-    console.error('Get order by id error:', error);
-    if (error.kind === 'ObjectId') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid order ID format' 
-      });
-    }
-    res.status(500).json({ 
-      success: false, 
-      message: error.message 
+    res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
+};
+
+// Update order status
+export const updateOrderStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { orderStatus, trackingNumber, notes } = req.body;
+
+    const order = await Order.findByIdAndUpdate(
+      id,
+      {
+        orderStatus,
+        trackingNumber: trackingNumber || order?.trackingNumber,
+        notes,
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Order updated',
+      data: order
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Cancel order
+export const cancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const order = await Order.findByIdAndUpdate(
+      id,
+      {
+        orderStatus: 'Cancelled',
+        notes: reason,
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Order cancelled',
+      data: order
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Generate invoice
+export const generateInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findById(id)
+      .populate('userId', 'name email phone')
+      .populate('products.productId', 'name image');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Generate invoice data
+    const invoiceData = {
+      orderNumber: order.orderNumber,
+      date: new Date(order.createdAt).toLocaleDateString(),
+      customer: order.userId,
+      products: order.products,
+      totalAmount: order.finalAmount,
+      shippingAddress: order.shippingAddress
+    };
+
+    res.status(200).json({
+      success: true,
+      data: invoiceData
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+export default {
+  getAllOrders,
+  getOrderDetails,
+  updateOrderStatus,
+  cancelOrder,
+  generateInvoice
 };

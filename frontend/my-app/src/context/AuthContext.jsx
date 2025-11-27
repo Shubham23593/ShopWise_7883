@@ -1,11 +1,12 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { authAPI } from '../services/api';
+import api from '../services/api';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState(null);
 
   useEffect(() => {
     checkAuth();
@@ -13,17 +14,30 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      const token = localStorage.getItem('token');
-      console.log('🔍 Checking auth, token:', token ? 'exists' : 'none');
+      const storedToken = localStorage.getItem('token');
+      console.log('🔍 Checking auth, token:', storedToken ? 'exists' : 'none');
       
-      if (token) {
-        const { data } = await authAPI.getProfile();
-        console.log('✅ Profile fetched:', data);
-        setUser(data.data || data.user);
+      if (storedToken) {
+        setToken(storedToken);
+        // Try to fetch profile
+        try {
+          const response = await api.get('/auth/profile', {
+            headers: { Authorization: `Bearer ${storedToken}` }
+          });
+          console.log('✅ Profile fetched:', response.data);
+          setUser(response.data.data || response.data.user);
+        } catch (profileError) {
+          console.error('❌ Profile fetch failed:', profileError);
+          // Token is invalid, clear it
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+        }
       }
     } catch (error) {
       console.error('❌ Auth check failed:', error);
       localStorage.removeItem('token');
+      setToken(null);
       setUser(null);
     } finally {
       setLoading(false);
@@ -33,74 +47,92 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       console.log('🔐 Attempting login:', email);
-      const { data } = await authAPI.login({ email, password });
-      console.log('📦 Login response:', data);
       
-      // Store token
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        console.log('✅ Token stored:', data.token);
+      const response = await api.post('/auth/login', {
+        email,
+        password
+      });
+      
+      console.log('📦 Login response:', response.data);
+      
+      if (response.data.success) {
+        // Store token
+        const newToken = response.data.data?.token || response.data.token;
+        if (newToken) {
+          localStorage.setItem('token', newToken);
+          setToken(newToken);
+          console.log('✅ Token stored');
+        }
+        
+        // Set user
+        const userData = response.data.data?.user || response.data.user || response.data.data;
+        setUser(userData);
+        console.log('✅ User set:', userData);
+        
+        return { success: true, data: response.data };
       }
       
-      // Set user
-      const userData = data.data || data.user;
-      setUser(userData);
-      console.log('✅ User set:', userData);
-      
-      return data;
+      throw new Error(response.data.message || 'Login failed');
     } catch (error) {
-      console.error('❌ Login error:', error);
+      console.error('❌ Login error:', error.response?.data || error.message);
       throw error;
     }
   };
 
-  const register = async (name, email, password) => {
+  const register = async (name, email, phone, password) => {
     try {
       console.log('📝 Attempting register:', email);
-      const { data } = await authAPI.register({ name, email, password });
-      console.log('📦 Register response:', data);
       
-      // Store token
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        console.log('✅ Token stored:', data.token);
+      const response = await api.post('/auth/register', {
+        name,
+        email,
+        phone,
+        password
+      });
+      
+      console.log('📦 Register response:', response.data);
+      
+      if (response.data.success) {
+        // Store token
+        const newToken = response.data.data?.token || response.data.token;
+        if (newToken) {
+          localStorage.setItem('token', newToken);
+          setToken(newToken);
+          console.log('✅ Token stored');
+        }
+        
+        // Set user
+        const userData = response.data.data?.user || response.data.user || response.data.data;
+        setUser(userData);
+        console.log('✅ User set:', userData);
+        
+        return { success: true, data: response.data };
       }
       
-      // Set user
-      const userData = data.data || data.user;
-      setUser(userData);
-      console.log('✅ User set:', userData);
-      
-      return data;
+      throw new Error(response.data.message || 'Registration failed');
     } catch (error) {
-      console.error('❌ Register error:', error);
+      console.error('❌ Register error:', error.response?.data || error.message);
       throw error;
     }
   };
 
   const logout = () => {
     console.log('👋 Logging out...');
-    
-    // Clear all localStorage data
-    localStorage.clear();
-    
-    // Clear all sessionStorage data
+    localStorage.removeItem('token');
     sessionStorage.clear();
-    
-    // Clear user state
+    setToken(null);
     setUser(null);
-    
-    // Force full page reload to fresh state
     window.location.href = '/';
   };
 
   const value = {
     user,
+    token,
     login,
     register,
     logout,
     loading,
-    isAuthenticated: !!user
+    isAuthenticated: !!user && !!token
   };
 
   console.log('🔐 Auth Context State:', { 

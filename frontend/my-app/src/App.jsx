@@ -22,6 +22,15 @@ import AuthForm from "./components/AuthForm";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { fetchCart } from "./redux/cartSlice";
 
+// ✅ Admin Routes Import
+import AdminLogin from "./pages/Admin/AdminLogin";
+import AdminLayout from "./pages/Admin/AdminLayout";
+import AdminDashboard from "./pages/Admin/AdminDashboard";
+import ProductManagement from "./pages/Admin/ProductManagement";
+import OrderManagement from "./pages/Admin/OrderManagement";
+import UserManagement from "./pages/Admin/UserManagement";
+import BrandManagement from "./pages/Admin/BrandManagement";
+
 function AppRoutes() {
   const [order, setOrder] = useState(null);
   const { user, loading } = useAuth();
@@ -43,46 +52,65 @@ function AppRoutes() {
 
   return (
     <BrowserRouter>
-      <Navbar />
-
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/shop" element={<Shop />} />
-        <Route path="/product/:id" element={<ProductDetail />} />
-        <Route path="/cart" element={<Cart />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/orders/:id" element={<OrderDetail />} />
+        {/* ✅ Admin Routes - No Navbar/Footer */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="products" element={<ProductManagement />} />
+          <Route path="orders" element={<OrderManagement />} />
+          <Route path="users" element={<UserManagement />} />
+          <Route path="brands" element={<BrandManagement />} />
+          <Route index element={<Navigate to="dashboard" />} />
+        </Route>
+
+        {/* Customer Routes - With Navbar/Footer */}
         <Route
-          path="/profile"
-          element={user ? <Profile /> : <Navigate to="/" />}
-        />
-        <Route
-          path="/checkout"
+          path="/*"
           element={
-            user ? (
-              <Checkout setOrder={setOrder} />
-            ) : (
-              <Navigate to="/" replace />
-            )
+            <>
+              <Navbar />
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/shop" element={<Shop />} />
+                <Route path="/product/:id" element={<ProductDetail />} />
+                <Route path="/cart" element={<Cart />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/orders/:id" element={<OrderDetail />} />
+                <Route
+                  path="/profile"
+                  element={user ? <Profile /> : <Navigate to="/" />}
+                />
+                <Route
+                  path="/checkout"
+                  element={
+                    user ? (
+                      <Checkout setOrder={setOrder} />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
+                <Route
+                  path="/order-confirmation"
+                  element={
+                    user ? <OrderSuccess /> : <Navigate to="/" replace />
+                  }
+                />
+                <Route path="/filter-data" element={<FilterData />} />
+                <Route
+                  path="/auth"
+                  element={!user ? <AuthForm /> : <Navigate to="/" />}
+                />
+              </Routes>
+              <Footer />
+
+              {/* ✅ Chatbot Widget - Shows only for logged-in users */}
+              <Chatbot />
+            </>
           }
-        />
-        <Route
-          path="/order-confirmation"
-          element={
-            user ? <OrderSuccess /> : <Navigate to="/" replace />
-          }
-        />
-        <Route path="/filter-data" element={<FilterData />} />
-        <Route
-          path="/auth"
-          element={!user ? <AuthForm /> : <Navigate to="/" />}
         />
       </Routes>
-
-      <Footer />
-
-      {/* ✅ Chatbot Widget - Shows only for logged-in users */}
-      <Chatbot />
 
       <ToastContainer
         position="top-center"
